@@ -22,19 +22,19 @@ def budget_check_node(state: TravelState):
     # Returning this dict updates the LangGraph state automatically
     return {"remaining_budget": remaining}
 
+from dateutil import parser
+from datetime import datetime
+
 def normalize_date(user_input: str):
-    current_year = datetime.now().year
-    # Added more common formats for better extraction
-    formats = ("%b %d %Y", "%B %d %Y", "%Y-%m-%d", "%d/%m/%Y")
-    
-    for fmt in formats:
-        try:
-            # If the format already includes a year, don't append current_year
-            date_str = user_input if any(char.isdigit() for char in user_input[-4:]) else f"{user_input} {current_year}"
-            return datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")
-        except: continue
-        
-    return datetime.now().strftime("%Y-%m-%d")
+    try:
+        dt = parser.parse(user_input, fuzzy=True, default=datetime(1900, 1, 1))
+        # If year not mentioned, assume current year
+        if dt.year == 1900:
+            dt = dt.replace(year=datetime.now().year)
+        return dt.strftime("%Y-%m-%d")
+    except Exception as e:
+        logger.warning(f"Date parsing failed: {e}")
+        return datetime.now().strftime("%Y-%m-%d")
 
 def fallback_iata(city: str):
     mapping = {"dubai": "DXB", "bangkok": "BKK", "london": "LHR"}
@@ -54,7 +54,11 @@ def input_processor_node(state: TravelState):
         logger.warning(f"LLM Processor failed, using fallbacks: {e}")
         origin, dest = fallback_iata(state["origin"]), fallback_iata(state["destination"])
         
-    return {"origin_iata": origin, "destination_iata": dest, "travel_date_formatted": formatted_date}
+    return {
+            "origin_iata": origin,
+            "destination_iata": dest,
+            "travel_date_formatted": state.get("travel_date_formatted") or formatted_date
+        }
 
 def flight_agent(state: TravelState):
     logger.info(f"--- ✈️ FLIGHTS: {state['origin_iata']} -> {state['destination_iata']} ---")

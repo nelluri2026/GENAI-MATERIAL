@@ -37,12 +37,15 @@ async def parse_user_request(text: str):
     Return ONLY a JSON object with:
     - origin (string or "unknown")
     - destination (string or "unknown")
-    - travel_date_input (string or "unknown")
+    - travel_date_formatted (ISO format YYYY-MM-DD)
     - total_budget (number or null)
     
     Rules:
     - If a field is missing, set it to "unknown" or null.
     - Do not guess.
+    - Do NOT assume today's date
+    - Do NOT normalize dates
+    - If missing, return "unknown"
     """
     try:
         response = await llm.ainvoke(prompt)
