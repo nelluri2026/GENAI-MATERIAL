@@ -230,7 +230,12 @@ async def handle_message(message: cl.Message):
     payload = {
         "thread_id": thread_id,
         "action": "start",
-        "data": current_data
+        "data": {
+            "origin": current_data.get("origin", "unknown"),
+            "destination": current_data.get("destination", "unknown"),
+            "travel_date_input": current_data.get("travel_date_formatted", "unknown"),
+            "total_budget": current_data.get("total_budget")
+        }
     }
 
     logger.info("🚀 STARTING AGENT FLOW")
