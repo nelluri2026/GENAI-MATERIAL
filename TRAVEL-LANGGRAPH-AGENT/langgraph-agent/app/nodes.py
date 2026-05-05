@@ -54,6 +54,8 @@ def fallback_iata(city: str) -> str:
         "bangalore": "BLR",
         "chennai": "MAA",
         "delhi": "DEL",
+        "new delhi": "DEL",
+        "duabi": "DXB",
         "dubai": "DXB",
         "hyderabad": "HYD",
         "london": "LHR",
@@ -66,17 +68,30 @@ def fallback_iata(city: str) -> str:
     return mapping.get((city or "").strip().lower(), "DXB")
 
 
+def normalize_city_name(city: str) -> str:
+    aliases = {
+        "delhi": "Delhi",
+        "new delhi": "Delhi",
+        "duabi": "Dubai",
+        "dubai": "Dubai",
+    }
+    value = (city or "").strip()
+    return aliases.get(value.lower(), value)
+
+
 def input_processor_node(state: TravelState) -> TravelState:
     logger.info("--- PROCESSING TRIP: %s to %s ---", state.get("origin"), state.get("destination"))
     formatted_date = normalize_date(state.get("travel_date_input", ""))
+    origin_city = normalize_city_name(state.get("origin", ""))
+    destination_city = normalize_city_name(state.get("destination", ""))
 
-    origin = fallback_iata(state.get("origin", ""))
-    destination = fallback_iata(state.get("destination", ""))
+    origin = fallback_iata(origin_city)
+    destination = fallback_iata(destination_city)
 
     if _has_api_key(OPENAI_API_KEY):
         prompt = (
             "Return only valid JSON with airport IATA codes for this trip. "
-            f"Origin city: {state.get('origin')}. Destination city: {state.get('destination')}. "
+            f"Origin city: {origin_city}. Destination city: {destination_city}. "
             'Schema: {"origin_iata":"DXB","destination_iata":"BKK"}'
         )
         try:
@@ -93,6 +108,8 @@ def input_processor_node(state: TravelState) -> TravelState:
     return {
         "origin_iata": origin,
         "destination_iata": destination,
+        "origin": origin_city,
+        "destination": destination_city,
         "travel_date_formatted": formatted_date,
     }
 

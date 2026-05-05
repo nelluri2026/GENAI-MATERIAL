@@ -120,8 +120,13 @@ async def handle_message(message: cl.Message):
 
         reference = parts[1].strip().upper()
         try:
-            res_data = await call_agent({"thread_id": reference, "reference": reference, "action": "retrieve"})
-            cl.user_session.set("thread_id", reference)
+            res_data = await call_agent(
+                {
+                    "thread_id": cl.user_session.get("thread_id"),
+                    "reference": reference,
+                    "action": "retrieve",
+                }
+            )
             await process_agent_response(res_data)
         except Exception as exc:
             await cl.Message(content=f"Could not find `{reference}`. {exc}").send()

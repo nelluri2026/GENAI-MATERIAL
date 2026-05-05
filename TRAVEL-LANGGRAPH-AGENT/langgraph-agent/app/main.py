@@ -12,6 +12,10 @@ def _config(thread_id: str) -> dict:
     return {"configurable": {"thread_id": thread_id}}
 
 
+def _booking_thread_id(reference: str) -> str:
+    return f"booking:{reference.upper()}"
+
+
 def _run_with_checkpoint_retry(operation_name: str, func):
     try:
         return func()
@@ -78,7 +82,7 @@ def _persist_booking_reference(reference: str, source_thread_id: str, state: dic
         "source_thread_id": source_thread_id,
         "thread_alias_type": "booking_reference",
     }
-    _merge_state(reference, reference_state)
+    _merge_state(_booking_thread_id(reference), reference_state)
 
 
 def _run_budget_and_activities(thread_id: str) -> dict:
@@ -165,8 +169,17 @@ async def chat(payload: dict = Body(...)):
             _persist_booking_reference(current["booking_reference"], thread_id, _state(thread_id))
 
         elif action == "retrieve":
-            reference = (payload.get("reference") or thread_id or "").upper()
-            current = _state(reference) or _state(thread_id)
+            requested_reference = payload.get("reference")
+            if requested_reference:
+                reference = requested_reference.upper()
+                current = _state(_booking_thread_id(reference))
+                if not current:
+                    legacy_state = _state(reference)
+                    if legacy_state.get("booking_reference") == reference:
+                        current = legacy_state
+            else:
+                reference = thread_id
+                current = _state(thread_id)
             if not current:
                 raise HTTPException(status_code=404, detail=f"No booking found for {reference}")
             return _itinerary_response(current)
