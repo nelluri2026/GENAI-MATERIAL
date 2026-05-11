@@ -1,0 +1,147 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: travel-agent-api
+  namespace: travel-agent
+  labels:
+    app.kubernetes.io/name: travel-agent-api
+    app.kubernetes.io/part-of: travel-agent
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: travel-agent-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: travel-agent-api
+        app.kubernetes.io/part-of: travel-agent
+    spec:
+      containers:
+        - name: api
+          image: 111122223333.dkr.ecr.us-east-1.amazonaws.com/travel-langgraph-agent:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: travel-agent-secrets
+                  key: OPENAI_API_KEY
+            - name: SERPAPI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: travel-agent-secrets
+                  key: SERPAPI_API_KEY
+            - name: DUFFEL_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: travel-agent-secrets
+                  key: DUFFEL_ACCESS_TOKEN
+            - name: LANGGRAPH_POSTGRES_URI
+              valueFrom:
+                secretKeyRef:
+                  name: travel-agent-secrets
+                  key: LANGGRAPH_POSTGRES_URI
+            - name: LLM_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: travel-agent-config
+                  key: LLM_MODEL
+            - name: CHECKPOINTER_TYPE
+              valueFrom:
+                configMapKeyRef:
+                  name: travel-agent-config
+                  key: CHECKPOINTER_TYPE
+            - name: LANGGRAPH_POSTGRES_SETUP
+              valueFrom:
+                configMapKeyRef:
+                  name: travel-agent-config
+                  key: LANGGRAPH_POSTGRES_SETUP
+            - name: LANGGRAPH_POSTGRES_POOL_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: travel-agent-config
+                  key: LANGGRAPH_POSTGRES_POOL_MODE
+            - name: LANGGRAPH_POSTGRES_POOL_MIN_SIZE
+              valueFrom:
+                configMapKeyRef:
+                  name: travel-agent-config
+                  key: LANGGRAPH_POSTGRES_POOL_MIN_SIZE
+            - name: LANGGRAPH_POSTGRES_POOL_MAX_SIZE
+              valueFrom:
+                configMapKeyRef:
+                  name: travel-agent-config
+                  key: LANGGRAPH_POSTGRES_POOL_MAX_SIZE
+            - name: LANGGRAPH_POSTGRES_POOL_MAX_IDLE
+              valueFrom:
+                configMapKeyRef:
+                  name: travel-agent-config
+                  key: LANGGRAPH_POSTGRES_POOL_MAX_IDLE
+            - name: LANGGRAPH_POSTGRES_POOL_MAX_LIFETIME
+              valueFrom:
+                configMapKeyRef:
+                  name: travel-agent-config
+                  key: LANGGRAPH_POSTGRES_POOL_MAX_LIFETIME
+            - name: LANGGRAPH_POSTGRES_POOL_TIMEOUT
+              valueFrom:
+                configMapKeyRef:
+                  name: travel-agent-config
+                  key: LANGGRAPH_POSTGRES_POOL_TIMEOUT
+            - name: BOOKINGS_TABLE_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: travel-agent-config
+                  key: BOOKINGS_TABLE_ENABLED
+            - name: BOOKINGS_TABLE_SETUP
+              valueFrom:
+                configMapKeyRef:
+                  name: travel-agent-config
+                  key: BOOKINGS_TABLE_SETUP
+            - name: BOOKINGS_TABLE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: travel-agent-config
+                  key: BOOKINGS_TABLE_NAME
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: travel-agent-api
+  namespace: travel-agent
+  labels:
+    app.kubernetes.io/name: travel-agent-api
+    app.kubernetes.io/part-of: travel-agent
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: travel-agent-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

@@ -1,0 +1,60 @@
+name: RAG Docs GitOps
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "rag-docs/**"
+      - "4.rag-document-publisher/**"
+      - "shared/rag/**"
+      - ".github/workflows/rag-docs-gitops.yml"
+  pull_request:
+    paths:
+      - "rag-docs/**"
+      - "4.rag-document-publisher/**"
+      - "shared/rag/**"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install validation dependencies
+        run: pip install -r 4.rag-document-publisher/requirements.txt
+      - name: Validate RAG docs
+        run: python 4.rag-document-publisher/validate_docs.py --doc-root rag-docs
+
+  publish-to-s3:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Install publisher dependencies
+        run: pip install -r 4.rag-document-publisher/requirements.txt
+      - name: Publish approved docs to S3
+        env:
+          GIT_COMMIT_SHA: ${{ github.sha }}
+        run: |
+          python 4.rag-document-publisher/publish_to_s3.py \
+            --doc-root rag-docs \
+            --bucket "${{ vars.RAG_DOCS_BUCKET }}" \
+            --prefix "${{ vars.RAG_DOCS_PREFIX }}" \
+            --manifest-key "manifests/${{ github.sha }}.json"
+

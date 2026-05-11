@@ -1,0 +1,269 @@
+1. Create one workstation with ubuntu latest image - Just to be safe side take 20GB
+2. Installing and configuring docker
+
+sudo su - 
+# Add Docker's official GPG key:
+sudo apt update
+sudo apt install ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add the repository to Apt sources:
+sudo tee /etc/apt/sources.list.d/docker.sources <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/ubuntu
+Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
+Components: stable
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+sudo apt update
+
+sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+sudo systemctl status docker
+
+sudo systemctl start docker
+
+sudo docker run hello-world
+
+3. Configure aws cli with PROJECT-USER along with admin access, generate the keys 
+
+snap install aws-cli --classic
+
+aws configure
+
+4. Create ECR repository:
+
+1. generic-query-executor
+2. llm-text-sql-agent
+
+5. Build & Push images
+git clone https://github.com/shan5a6/GENAI-MATERIAL.git
+export AWS_REGION="us-west-2"
+
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+aws ecr get-login-password --region $AWS_REGION | \
+docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+
+Start building the images and push the images to ECR 
+
+Build & Push Generic Query Executor
+
+cd generic-query-executor
+
+# Build Docker image
+docker buildx build --platform linux/amd64 --output type=docker --provenance=false -t generic-query-executor:latest --no-cache .
+
+# Tag image for ECR
+docker tag generic-query-executor:latest \
+$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/generic-query-executor:latest
+
+# Push to ECR
+docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/generic-query-executor:latest
+
+Build & Push llm-text-sql-agent
+
+cd ~/GENAI-MATERIAL/PROJECT3-PROMPT-ENGG-TEXT-TO-SQL/2.llm-text-sql-agent
+
+# Build Docker image
+docker buildx build --platform linux/amd64 --output type=docker --provenance=false -t llm-text-sql-agent:latest --no-cache .
+
+# Tag image for ECR
+docker tag llm-text-sql-agent:latest \
+$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/llm-text-sql-agent:latest
+
+# Push to ECR
+docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/llm-text-sql-agent:latest
+
+cd ~/GENAI-MATERIAL/PROJECT3-PROMPT-ENGG-TEXT-TO-SQL/3.chat-assistant/
+
+# Build Docker image
+docker buildx build --platform linux/amd64 --output type=docker --provenance=false -t chat-assistant:latest --no-cache .
+
+# Tag image for ECR
+docker tag chat-assistant:latest \
+$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/chat-assistant:latest
+
+# Push to ECR
+docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/chat-assistant:latest
+
+Note: Verify all the images got published or not 
+
+6. Create a global IAM role with all the services like with below for Lambda
+	Policy 
+	lambda, rds, cloudwatch logs, api-gateway,api-gatewayv2, secretmanager
+	Role with above policy for lambda as GENAI-TEXT2SQL-ROLE & GENAI-TEXT2SQL-POLICY
+
+7. Create Lambda Functions 
+
+	1. generic-query-executor
+	2. llm-text-sql-agent
+
+	Note: Make sure you are selecting the right image and role created above 
+
+	1. generic-query-executor
+	Configure the below as environment variables:
+
+    DB_HOST - <YOU HAVE TO UPDATE THIS WITH YOUR RDS ENDPOINT - ONCE CREATED>
+    DB_NAME - postgres
+    DB_PASSWORD - postgres1234
+    DB_PORT - 5432
+    DB_SECRET_NAME - postgres
+    DB_USER - postgres
+    Note: 
+    1. IAM ROLE is important
+    2. Change execution time to 15 mins 
+    We will create RDS at the last and ensure you are creating the DB secret DB_SECRET_NAME secret manager once you have the database
+
+	2. llm-text-sql-agent
+
+Environment variables:
+AWS_REGION_NAME: us-west-2
+
+SECRET_NAME: llm-text-sql-agent-secrets
+Secret should be created with below information as others 
+
+  {
+  "OPENAI_API_KEY": "",
+  "OPENAI_MODEL": "gpt-4o-mini",
+  "QUERY_EXECUTOR_FUNCTION": "generic-query-executor"
+  }
+Note: 
+1.Expose this with function url 
+2. Change execution time to 15 mins 
+3. IAM ROLE is important
+
+
+8. Configure RDS-Postgres
+	Make it public
+	Instance identifier: postgres
+	username: postgres, password: postgres1234
+	database-1.cqn6ou022fgc.us-east-1.rds.amazonaws.com:
+
+9. Create the secret in the secret manager with the below 
+postgres as secret name, postgres username, postgres1234 password
+
+10. Now we have to update the secret information to the generic-query-executor api environments
+DB_HOST="database-1.cqn6ou022fgc.us-east-1.rds.amazonaws.com"
+
+12. Let's go ahead and try to create the databases and then load the data 
+cat <<EOF >docker-compose.yml
+
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: olist_ecommerce
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker-data/postgres:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+  
+EOF
+
+# docker compose up -d 
+
+Note: This tool is going to run on port 5050
+
+Username to login:  admin@admin.com
+Password: admin123
+http://52.201.21.136:5050/
+
+Make sure you are adding the server with username: postgres, password: postgres1234 with RDS: FQDN
+
+Now go to db -> schemas -> create demo schema
+
+Make sure you are creating two tables in the demo schema like below 
+
+CREATE TABLE demo.customers (
+    customer_id VARCHAR(20) PRIMARY KEY,
+    customer_name VARCHAR(100),
+    email VARCHAR(150),
+    city VARCHAR(50),
+    state VARCHAR(10),
+    created_at TIMESTAMP
+);
+
+CREATE TABLE demo.orders (
+    order_id VARCHAR(20) PRIMARY KEY,
+    customer_id VARCHAR(20),
+    order_date TIMESTAMP,
+    status VARCHAR(50),
+    total_amount NUMERIC(10,2),
+    FOREIGN KEY (customer_id) REFERENCES demo.customers(customer_id)
+);
+
+Note: 
+1.created/time - timestamp without timezone 
+2. Make sure you are adding the constraint for the orders table 
+	- constraints - foreign key - name (customer_id) - columns - customer_id -- reference customer_id
+
+Make sure you are uploading the orders & customers csv to the tables 
+
+https://github.com/shan5a6/GENAI-MATERIAL/tree/master/AWS-PROJECT2-LAMBDA-API-POSTGRES/post-gres-files
+
+	Make sure you are selecting the encoding as UTF8
+	Options - Header
+	Finally get the top 100 rows 
+
+
+13. Testing the LLM agent if its able to fetch the details or not from DB using Postman
+Take llm-text-sql-agent lambda function url and test with below payload in postman
+{
+
+    "query": "List all the customers whose order amount is greater than 500"
+
+}
+
+14. Let's go ahead and deploy the chat-assistant as ECS container 
+Make sure we are creating a new role with below 
+
+Create one task definition first with role 
+
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "VisualEditor0",
+			"Effect": "Allow",
+			"Action": [
+				"rds:*",
+				"secretsmanager:*",
+				"apigateway:*",
+				"logs:*",
+				"lambda:*",
+				"ecs:*",
+				"ecr:*"
+			],
+			"Resource": "*"
+		}
+	]
+}
+
+Note Our chat assistant runs on 8000
+
+add the env variable as LLM_AGENT_URL with the value as the lambda function url of llm-text-sql-agent
+Create one cluster with namespace and farget
+Create one namespace 
+Once cluster creation is completed just create one service with the task definition we created above 
+Pick the ipaddress and port as 8000 and test in the browser 
+

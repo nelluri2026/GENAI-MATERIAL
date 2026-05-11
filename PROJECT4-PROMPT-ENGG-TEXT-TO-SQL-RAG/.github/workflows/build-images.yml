@@ -1,0 +1,66 @@
+name: Build Service Images
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "1.generic-query-executor/**"
+      - "2.llm-text-sql-agent/**"
+      - "3.chat-assistant/**"
+      - "4.rag-document-publisher/**"
+      - "5.rag-ingestion-service/**"
+      - "6.rag-retriever-service/**"
+      - "shared/**"
+      - "rag-docs/**"
+      - ".github/workflows/build-images.yml"
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - name: generic-query-executor
+            dockerfile: 1.generic-query-executor/Dockerfile
+            context: 1.generic-query-executor
+          - name: llm-text-sql-agent
+            dockerfile: 2.llm-text-sql-agent/Dockerfile
+            context: 2.llm-text-sql-agent
+          - name: chat-assistant
+            dockerfile: 3.chat-assistant/Dockerfile
+            context: 3.chat-assistant
+          - name: rag-document-publisher
+            dockerfile: 4.rag-document-publisher/Dockerfile
+            context: .
+          - name: rag-ingestion-service
+            dockerfile: 5.rag-ingestion-service/Dockerfile
+            context: .
+          - name: rag-ingestion-lambda
+            dockerfile: 5.rag-ingestion-service/Dockerfile.lambda
+            context: .
+          - name: rag-retriever-service
+            dockerfile: 6.rag-retriever-service/Dockerfile
+            context: .
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push
+        run: |
+          IMAGE="${ECR_REGISTRY}/${{ matrix.service.name }}:${GITHUB_SHA}"
+          docker build -f "${{ matrix.service.dockerfile }}" -t "$IMAGE" "${{ matrix.service.context }}"
+          docker push "$IMAGE"

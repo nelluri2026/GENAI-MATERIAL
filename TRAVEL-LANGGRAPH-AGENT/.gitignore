@@ -22,6 +22,9 @@ ENV/
 travel_bookings.json
 *.log
 
+# Local Kubernetes secrets
+k8s/02-secret.yaml
+
 # OS/editor files
 .DS_Store
 .idea/

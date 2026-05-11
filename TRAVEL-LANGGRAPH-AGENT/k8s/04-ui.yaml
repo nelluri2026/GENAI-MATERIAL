@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: travel-agent-ui
+  namespace: travel-agent
+  labels:
+    app.kubernetes.io/name: travel-agent-ui
+    app.kubernetes.io/part-of: travel-agent
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: travel-agent-ui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: travel-agent-ui
+        app.kubernetes.io/part-of: travel-agent
+    spec:
+      containers:
+        - name: ui
+          image: 111122223333.dkr.ecr.us-east-1.amazonaws.com/travel-chat-assistant:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: travel-agent-secrets
+                  key: OPENAI_API_KEY
+            - name: LLM_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: travel-agent-config
+                  key: UI_LLM_MODEL
+            - name: LLM_AGENT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: travel-agent-config
+                  key: LLM_AGENT_URL
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 45
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: travel-agent-ui
+  namespace: travel-agent
+  labels:
+    app.kubernetes.io/name: travel-agent-ui
+    app.kubernetes.io/part-of: travel-agent
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: travel-agent-ui
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

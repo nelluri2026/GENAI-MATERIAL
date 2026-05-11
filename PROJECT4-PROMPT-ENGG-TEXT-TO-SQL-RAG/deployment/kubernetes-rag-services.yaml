@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-retriever-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: rag-retriever-service
+  template:
+    metadata:
+      labels:
+        app: rag-retriever-service
+    spec:
+      containers:
+        - name: rag-retriever-service
+          image: ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/rag-retriever-service:TAG
+          ports:
+            - containerPort: 8080
+          env:
+            - name: RAG_SECRET_NAME
+              value: rag-platform-secrets
+            - name: AWS_REGION_NAME
+              value: us-west-2
+            - name: RAG_METADATA_TABLE
+              value: rag-document-versions
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rag-retriever-service
+spec:
+  selector:
+    app: rag-retriever-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-ingestion-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rag-ingestion-service
+  template:
+    metadata:
+      labels:
+        app: rag-ingestion-service
+    spec:
+      containers:
+        - name: rag-ingestion-service
+          image: ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/rag-ingestion-service:TAG
+          ports:
+            - containerPort: 8080
+          env:
+            - name: RAG_SECRET_NAME
+              value: rag-platform-secrets
+            - name: AWS_REGION_NAME
+              value: us-west-2
+            - name: RAG_METADATA_TABLE
+              value: rag-document-versions
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rag-ingestion-service
+spec:
+  selector:
+    app: rag-ingestion-service
+  ports:
+    - port: 8080
+      targetPort: 8080

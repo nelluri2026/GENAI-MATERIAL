@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: travel-agent-config
+  namespace: travel-agent
+data:
+  LLM_MODEL: "gpt-4o"
+  UI_LLM_MODEL: "gpt-4o-mini"
+  CHECKPOINTER_TYPE: "postgres"
+  LANGGRAPH_POSTGRES_SETUP: "false"
+  LANGGRAPH_POSTGRES_POOL_MODE: "null"
+  LANGGRAPH_POSTGRES_POOL_MIN_SIZE: "1"
+  LANGGRAPH_POSTGRES_POOL_MAX_SIZE: "5"
+  LANGGRAPH_POSTGRES_POOL_MAX_IDLE: "300"
+  LANGGRAPH_POSTGRES_POOL_MAX_LIFETIME: "300"
+  LANGGRAPH_POSTGRES_POOL_TIMEOUT: "30"
+  BOOKINGS_TABLE_ENABLED: "true"
+  BOOKINGS_TABLE_SETUP: "false"
+  BOOKINGS_TABLE_NAME: "bookings"
+  LLM_AGENT_URL: "http://travel-agent-api:8000/chat"

@@ -1,0 +1,10 @@
+FROM public.ecr.aws/lambda/python:3.11
+
+COPY 5.rag-ingestion-service/requirements.txt ${LAMBDA_TASK_ROOT}/requirements.txt
+RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.txt
+
+COPY shared ${LAMBDA_TASK_ROOT}/shared
+COPY 5.rag-ingestion-service/app.py ${LAMBDA_TASK_ROOT}/app.py
+
+CMD ["app.lambda_handler"]
+
