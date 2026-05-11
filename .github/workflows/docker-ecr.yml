@@ -6,6 +6,8 @@ on:
       - master
     paths:
       - 'TRAVEL-LANGGRAPH-AGENT/**'
+      - 'README.md'
+      - '.github/workflows/**'
   workflow_dispatch: 
 
 permissions:
