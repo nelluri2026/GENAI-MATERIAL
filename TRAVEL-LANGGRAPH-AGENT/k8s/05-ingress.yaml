@@ -15,7 +15,7 @@ spec:
         pathType: Prefix
         backend:
           service: 
-            name: app1-svc1
+            name: travel-agent-ui
             port:
               number: 8000
 # apiVersion: networking.k8s.io/v1
