@@ -1,0 +1,135 @@
+name: Deploy Travel Stack to EKS
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy for both services"
+        required: true
+        default: "latest"
+      ingress_host:
+        description: "Public hostname for the Chainlit UI"
+        required: true
+        default: "travel-agent.example.com"
+      run_schema_setup:
+        description: "Run LangGraph/checkpoint and bookings table setup"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: read
+
+env:
+  PROJECT_DIR: TRAVEL-LANGGRAPH-AGENT
+  NAMESPACE: travel-agent
+
+jobs:
+  deploy:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --name "${{ secrets.EKS_CLUSTER_NAME }}" \
+            --region "${{ secrets.AWS_REGION }}"
+
+      - name: Render Kubernetes manifests
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          INGRESS_HOST: ${{ inputs.ingress_host }}
+          RUN_SCHEMA_SETUP: ${{ inputs.run_schema_setup }}
+        run: |
+          set -euo pipefail
+
+          rm -rf rendered-k8s
+          mkdir -p rendered-k8s
+          cp ${PROJECT_DIR}/k8s/00-namespace.yaml rendered-k8s/
+          cp ${PROJECT_DIR}/k8s/01-configmap.yaml rendered-k8s/
+          cp ${PROJECT_DIR}/k8s/03-backend.yaml rendered-k8s/
+          cp ${PROJECT_DIR}/k8s/04-ui.yaml rendered-k8s/
+          cp ${PROJECT_DIR}/k8s/05-ingress.yaml rendered-k8s/
+          cp ${PROJECT_DIR}/k8s/06-hpa.yaml rendered-k8s/
+
+          BACKEND_IMAGE="${ECR_REGISTRY}/langgraph-agent:${IMAGE_TAG}"
+          UI_IMAGE="${ECR_REGISTRY}/chat-assistant:${IMAGE_TAG}"
+
+          sed -i "s|111122223333.dkr.ecr.us-east-1.amazonaws.com/travel-langgraph-agent:latest|${BACKEND_IMAGE}|g" rendered-k8s/03-backend.yaml
+          sed -i "s|111122223333.dkr.ecr.us-east-1.amazonaws.com/travel-chat-assistant:latest|${UI_IMAGE}|g" rendered-k8s/04-ui.yaml
+          sed -i "s|travel-agent.example.com|${INGRESS_HOST}|g" rendered-k8s/05-ingress.yaml
+          sed -i "s|LANGGRAPH_POSTGRES_SETUP: \"false\"|LANGGRAPH_POSTGRES_SETUP: \"${RUN_SCHEMA_SETUP}\"|g" rendered-k8s/01-configmap.yaml
+          sed -i "s|BOOKINGS_TABLE_SETUP: \"false\"|BOOKINGS_TABLE_SETUP: \"${RUN_SCHEMA_SETUP}\"|g" rendered-k8s/01-configmap.yaml
+
+          if [ "${RUN_SCHEMA_SETUP}" = "true" ]; then
+            python - <<'PY'
+          from pathlib import Path
+          path = Path("rendered-k8s/03-backend.yaml")
+          text = path.read_text()
+          text = text.replace("replicas: 2", "replicas: 1", 1)
+          path.write_text(text)
+          PY
+          fi
+
+      - name: Apply namespace
+        run: kubectl apply -f rendered-k8s/00-namespace.yaml
+
+      - name: Apply runtime secret
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          DUFFEL_ACCESS_TOKEN: ${{ secrets.DUFFEL_ACCESS_TOKEN }}
+          LANGGRAPH_POSTGRES_URI: ${{ secrets.LANGGRAPH_POSTGRES_URI }}
+        run: |
+          set -euo pipefail
+
+          kubectl create secret generic travel-agent-secrets \
+            --namespace "${NAMESPACE}" \
+            --from-literal=OPENAI_API_KEY="${OPENAI_API_KEY}" \
+            --from-literal=SERPAPI_API_KEY="${SERPAPI_API_KEY}" \
+            --from-literal=DUFFEL_ACCESS_TOKEN="${DUFFEL_ACCESS_TOKEN}" \
+            --from-literal=LANGGRAPH_POSTGRES_URI="${LANGGRAPH_POSTGRES_URI}" \
+            --dry-run=client \
+            -o yaml | kubectl apply -f -
+
+      - name: Apply manifests
+        run: |
+          kubectl apply -f rendered-k8s/01-configmap.yaml
+          kubectl apply -f rendered-k8s/03-backend.yaml
+          kubectl apply -f rendered-k8s/04-ui.yaml
+          kubectl apply -f rendered-k8s/05-ingress.yaml
+          kubectl apply -f rendered-k8s/06-hpa.yaml
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/travel-agent-api -n "${NAMESPACE}" --timeout=300s
+          kubectl rollout status deployment/travel-agent-ui -n "${NAMESPACE}" --timeout=300s
+
+      - name: Show deployment summary
+        if: always()
+        run: |
+          kubectl get pods -n "${NAMESPACE}" -o wide
+          kubectl get svc -n "${NAMESPACE}"
+          kubectl get ingress -n "${NAMESPACE}"

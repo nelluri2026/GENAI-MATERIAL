@@ -1,0 +1,7 @@
+openai>=2.0.0
+pinecone>=7.0.0
+python-dotenv>=0.21.0
+pdfplumber>=0.11.0
+pypdf>=5.0.0
+langchain-text-splitters>=0.3.0
+tiktoken>=0.8.0
