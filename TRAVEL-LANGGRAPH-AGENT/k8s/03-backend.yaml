@@ -17,6 +17,8 @@ spec:
         app.kubernetes.io/name: travel-agent-api
         app.kubernetes.io/part-of: travel-agent
     spec:
+      nodeSelector:
+        eks.amazonaws.com/nodegroup: "private-nodes"
       containers:
         - name: api
           image: 111122223333.dkr.ecr.us-east-1.amazonaws.com/travel-langgraph-agent:latest
