@@ -47,26 +47,3 @@ spec:
   #   - hosts:
   #       - travel-agent.example.com
   #     secretName: travel-agent-ui-tls
-
-
-
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: travel-agent-ui
-  namespace: travel-agent
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/use-regex: "true"
-spec:
-  ingressClassName: nginx
-  rules:
-  - http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service: 
-            name: app1-svc1
-            port:
-              number: 8000
