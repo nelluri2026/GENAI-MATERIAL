@@ -17,6 +17,8 @@ spec:
         app.kubernetes.io/name: travel-agent-ui
         app.kubernetes.io/part-of: travel-agent
     spec:
+      nodeSelector:
+        eks.amazonaws.com/nodegroup: "public-nodes"
       containers:
         - name: ui
           image: 111122223333.dkr.ecr.us-east-1.amazonaws.com/travel-chat-assistant:latest
