@@ -4,20 +4,25 @@ metadata:
   name: travel-agent-ui
   namespace: travel-agent
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "travel-agent-route"
+    nginx.ingress.kubernetes.io/session-cookie-path: "/"
+
+    # Good for WebSocket / long-running Socket.IO connections
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
   ingressClassName: nginx
   rules:
-  - http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service: 
-            name: travel-agent-ui
-            port:
-              number: 8000
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: travel-agent-ui
+                port:
+                  number: 8000
 # apiVersion: networking.k8s.io/v1
 # kind: Ingress
 # metadata:
