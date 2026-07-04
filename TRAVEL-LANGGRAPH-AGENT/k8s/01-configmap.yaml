@@ -15,6 +15,6 @@ data:
   LANGGRAPH_POSTGRES_POOL_MAX_LIFETIME: "300"
   LANGGRAPH_POSTGRES_POOL_TIMEOUT: "30"
   BOOKINGS_TABLE_ENABLED: "true"
-  BOOKINGS_TABLE_SETUP: "false" # FIRST TIME KEEP IT TRUE, DON"T FORGET TO SET false once done with creation
+  BOOKINGS_TABLE_SETUP: "true" # FIRST TIME KEEP IT TRUE, DON"T FORGET TO SET false once done with creation
   BOOKINGS_TABLE_NAME: "bookings"
   LLM_AGENT_URL: "http://travel-agent-api:8000/chat"
