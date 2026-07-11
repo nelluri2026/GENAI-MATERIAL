@@ -199,4 +199,4 @@ jobs:
         run: |
           kubectl get pods -n "${NAMESPACE}" -o wide
           kubectl get svc -n "${NAMESPACE}"
-          kubectl get ingress -n "${NAMESPACE}"
+          kubectl get ingress -n "${NAMESPACE}
