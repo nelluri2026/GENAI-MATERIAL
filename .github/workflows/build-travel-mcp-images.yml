@@ -127,4 +127,4 @@ jobs:
           docker push "${ECR_REGISTRY}/${{ matrix.service.repository }}:${IMAGE_TAG}"
           if [ "${PUSH_LATEST}" = "true" ]; then
             docker push "${ECR_REGISTRY}/${{ matrix.service.repository }}:latest"
-          
+          fi
